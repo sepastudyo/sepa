@@ -715,7 +715,20 @@ h1,h2,h3,h4{ font-family: var(--f-display); font-weight: 800; letter-spacing: -0
 .showreel__media video{
   position: absolute; inset: 0; z-index: 1;
   width: 100%; height: 100%;
-  object-fit: cover;
+  /* The reel is 2.39:1 and no screen is that wide, so "cover" had to zoom in
+     and cut the sides - 15% on a wide desktop but 27% on a 16:10 laptop, which
+     is enough to lose the edge of every shot. "contain" keeps the whole frame
+     at every aspect ratio and puts the difference above and below instead. The
+     background makes those bands read as the section's own black. */
+  object-fit: contain;
+  background: var(--black);
+}
+/* A phone held upright is taller than it is wide, so containing a 2.39:1 reel
+   there would shrink it to a thin strip in the middle of the screen. Below 4:3
+   fill instead and accept the crop - that is what a full-screen video on a
+   phone looks like anyway. */
+@media (max-aspect-ratio: 4/3){
+  .showreel__media video{ object-fit: cover; }
 }
 .showreel__label{
   position: absolute; z-index: 3; inset: 0;
@@ -727,6 +740,22 @@ h1,h2,h3,h4{ font-family: var(--f-display); font-weight: 800; letter-spacing: -0
   font-family: var(--f-display); font-weight: 800; text-transform: uppercase;
   font-size: clamp(1.4rem, 3.4vw, 2.6rem); letter-spacing: -0.01em;
 }
+.showreel__sound{
+  position: absolute; z-index: 4;
+  right: var(--gutter); bottom: clamp(20px,4vw,40px);
+  width: 46px; height: 46px;
+  display: flex; align-items: center; justify-content: center;
+  border: 1px solid rgba(244,242,236,.35);
+  border-radius: 50%;
+  background: rgba(10,10,10,.3);
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
+  color: var(--off-white);
+  transition: border-color var(--dur-fast) var(--ease-out), color var(--dur-fast) var(--ease-out), transform var(--dur-fast) var(--ease-out);
+}
+.showreel__sound svg{ width: 20px; height: 20px; }
+.showreel__sound:hover{ border-color: var(--accent); color: var(--accent); transform: scale(1.1); }
+.showreel__sound.is-on{ border-color: var(--accent); color: var(--accent); }
 .showreel__play{
   width: clamp(84px,9vw,120px); height: clamp(84px,9vw,120px);
   border-radius: 50%;
@@ -1045,10 +1074,11 @@ h1,h2,h3,h4{ font-family: var(--f-display); font-weight: 800; letter-spacing: -0
       <div id="showreelMedia" class="showreel__media">
         <!-- Drop the reel at video/sepa-showreel.mp4 and its first-frame still at
              video/sepa-showreel-poster.jpg. Only an .mp4 ships; add a <source>
-             for a .webm above it if you ever encode one. The reel has no controls: it
-             runs muted and looping whenever the section is on screen. -->
+             for a .webm above it if you ever encode one. It loops whenever the
+             section is on screen and tries to start WITH sound; browsers that
+             refuse that get silent playback until the visitor's first click. -->
         <video id="showreelVideo" poster="video/sepa-showreel-poster.jpg"
-               muted loop playsinline preload="metadata" aria-label="SEPA Studio showreel">
+               loop playsinline preload="metadata" aria-label="SEPA Studio showreel">
           <source src="video/sepa-showreel.mp4" type="video/mp4">
         </video>
       </div>
@@ -1056,6 +1086,9 @@ h1,h2,h3,h4{ font-family: var(--f-display); font-weight: 800; letter-spacing: -0
         <div class="showreel__title" data-i18n="showreel.title">SEPA Studio Showreel</div>
       </div>
     </div>
+    <button type="button" class="showreel__sound" id="showreelSound" data-cursor="hover" aria-label="Turn sound on">
+      <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 9v6h4l5 4V5L8 9H4z" fill="currentColor"/><path d="M16.8 9.4l4.4 5.2M21.2 9.4l-4.4 5.2" stroke="currentColor" stroke-width="1.6" fill="none" stroke-linecap="round"/></svg>
+    </button>
   </section>
 
   <section class="manifesto section surface-charcoal" id="about" aria-label="Manifesto">
@@ -1272,7 +1305,7 @@ window.SEPA_CONTENT = {
       eyebrow: "Selected work",
       title: "Recent projects",
       items: [
-        { name: "Güney Urla", cat: "Brand Campaign, Social Media, Web Design ", img: "img/guneyurla_ek.png" },
+        { name: "Güney Urla", cat: "Brand Campaign, Social Media, Web Design ", img: "img/guneyurla_ek.jpg" },
 
       ],
       cta: "View all projects"
@@ -1381,7 +1414,7 @@ window.SEPA_CONTENT = {
       eyebrow: "Seçili projeler",
       title: "Güncel işler",
       items: [
-        { name: "Güney Urla", cat: "Marka Kampanyası, Sosyal Medya, Web Tasarım", img: "img/guneyurla_ek.png" },
+        { name: "Güney Urla", cat: "Marka Kampanyası, Sosyal Medya, Web Tasarım", img: "img/guneyurla_ek.jpg" },
         
       ],
       cta: "Tüm projeleri gör"
@@ -2142,31 +2175,76 @@ window.SEPA_BRANDS = [
   function initShowreel() {
     var label = qs("#showreelLabel");
     if (!REDUCED) {
-      /* The reel stays full-bleed; the pin only holds it on screen for one
-         screen of scroll while the title fades off it.
-         refreshPriority keeps this ahead of the pinned services track: this
-         pin's spacing shifts everything below it, so if the services track
-         measured first it would land on stale positions. */
-      gsap.timeline({
+      /* No pin on the reel. Pinning held the page still for a whole screen of
+         scrolling, so the wheel appeared to do nothing while the video played.
+         The section now scrolls away like any other and the title just fades
+         off it on the way out. */
+      gsap.to(label, {
+        opacity: 0, ease: "none",
         scrollTrigger: {
-          trigger: ".showreel", start: "top top", end: "+=100%",
-          pin: true, scrub: 0.5, refreshPriority: 1
+          trigger: ".showreel", start: "top top", end: "bottom top", scrub: 0.5
         }
-      })
-        .to(label, { opacity: 0, ease: "none" }, 0.55);
+      });
     }
 
     var video = qs("#showreelVideo");
     if (!video) return;
 
-    /* The reel has no play control, so it runs itself: muted (the only way
-       browsers allow autoplay) and looping, whenever the section is on screen.
-       Visitors who asked for reduced motion keep the still poster instead. */
+    /* The corner control is the explicit way to switch the sound, and doubles
+       as a play button for reduced-motion visitors, whose reel sits on its
+       poster. Its icon follows video.muted rather than tracking state itself. */
+    var soundBtn = qs("#showreelSound");
+    var ICON_SOUND_OFF = '<path d="M4 9v6h4l5 4V5L8 9H4z" fill="currentColor"/><path d="M16.8 9.4l4.4 5.2M21.2 9.4l-4.4 5.2" stroke="currentColor" stroke-width="1.6" fill="none" stroke-linecap="round"/>';
+    var ICON_SOUND_ON = '<path d="M4 9v6h4l5 4V5L8 9H4z" fill="currentColor"/><path d="M16.6 8.8a4.6 4.6 0 010 6.4M19.3 6.1a8.4 8.4 0 010 11.8" stroke="currentColor" stroke-width="1.6" fill="none" stroke-linecap="round"/>';
+    var soundLocked = false; /* the visitor used the control: stop deciding for them */
+
+    function syncSoundBtn() {
+      if (!soundBtn) return;
+      soundBtn.classList.toggle("is-on", !video.muted);
+      soundBtn.querySelector("svg").innerHTML = video.muted ? ICON_SOUND_OFF : ICON_SOUND_ON;
+      soundBtn.setAttribute("aria-label", video.muted ? "Turn sound on" : "Turn sound off");
+    }
+    video.addEventListener("volumechange", syncSoundBtn);
+    syncSoundBtn();
+
+    if (soundBtn) {
+      soundBtn.addEventListener("click", function () {
+        soundLocked = true;
+        video.muted = !video.muted;
+        if (video.paused) {
+          var p = video.play();
+          if (p && p.catch) p.catch(function () {});
+        }
+      });
+    }
+
+    /* Browsers only guarantee autoplay when a video is silent. So the reel asks
+       for sound first, and only falls back to silence if the browser refuses -
+       a returning visitor, or anyone who has already clicked, gets audio from
+       the first frame. */
+    function onFirstGesture(e) {
+      if (soundLocked || (soundBtn && soundBtn.contains(e.target))) return;
+      video.muted = false;
+      document.removeEventListener("pointerdown", onFirstGesture, true);
+      document.removeEventListener("keydown", onFirstGesture, true);
+    }
+
+    /* Reduced motion: no autoplay at all, the corner control starts it. */
     if (REDUCED) return;
 
     function autoPlay() {
       var p = video.play();
-      if (p && p.catch) p.catch(function () {}); /* blocked, or no file yet: stay on the poster */
+      if (!p || !p.catch) return;
+      p.catch(function () {
+        /* Refused because it is unmuted and the visitor has not interacted yet.
+           Play it silently instead of leaving a dead frame, and take the sound
+           off the very next real gesture anywhere on the page. */
+        video.muted = true;
+        var q = video.play();
+        if (q && q.catch) q.catch(function () {});
+        document.addEventListener("pointerdown", onFirstGesture, true);
+        document.addEventListener("keydown", onFirstGesture, true);
+      });
     }
     function autoPause() { if (!video.paused) video.pause(); }
 

@@ -1,0 +1,10 @@
+# The 296 MB master. GitHub hard-rejects any file over 100 MB, so pushing this
+# would fail the whole push - and it never needs to ship anyway. It stays on
+# your machine; video/README.txt carries the command to re-encode from it.
+video/*-master.*
+video/*-web.*
+
+# OS noise
+Thumbs.db
+desktop.ini
+.DS_Store

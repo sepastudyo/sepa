@@ -1,0 +1,7 @@
+# Notes for whoever drops the assets in - no reason to ship them.
+**/README.txt
+
+# Uncompressed masters must never reach the deploy: Vercel serves whatever
+# sits in video/, and a full-size reel would burn the bandwidth allowance.
+video/*-master.*
+video/*-web.*
